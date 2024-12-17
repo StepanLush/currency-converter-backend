@@ -6,6 +6,34 @@ require('dotenv').config();
 const app = express();
 const PORT = 3000;
 
+// Создаём метрики
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics();
+
+const requestCounter = new client.Counter({
+    name: 'http_requests_total',
+    help: 'Количество HTTP запросов',
+    labelNames: ['method', 'route', 'status_code'],
+});
+
+// Middleware для счётчика запросов
+app.use((req, res, next) => {
+    res.on('finish', () => {
+        requestCounter.labels(req.method, req.path, res.statusCode).inc();
+    });
+    next();
+});
+
+// Добавляем маршрут /metrics для Prometheus
+app.get('/metrics', async (req, res) => {
+    try {
+        res.set('Content-Type', client.register.contentType);
+        res.end(await client.register.metrics());
+    } catch (err) {
+        res.status(500).end(err);
+    }
+});
+
 app.use(cors());
 
 app.get('/convert', async (req, res) => {
