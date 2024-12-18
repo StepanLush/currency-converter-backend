@@ -6,35 +6,24 @@ require('dotenv').config();
 const app = express();
 const PORT = 3000;
 
-// // Создаём метрики
-// const collectDefaultMetrics = client.collectDefaultMetrics;
-// collectDefaultMetrics();
-
-// const requestCounter = new client.Counter({
-//     name: 'http_requests_total',
-//     help: 'Количество HTTP запросов',
-//     labelNames: ['method', 'route', 'status_code'],
-// });
-
-// // Middleware для счётчика запросов
-// app.use((req, res, next) => {
-//     res.on('finish', () => {
-//         requestCounter.labels(req.method, req.path, res.statusCode).inc();
-//     });
-//     next();
-// });
-
-// // Добавляем маршрут /metrics для Prometheus
-// app.get('/metrics', async (req, res) => {
-//     try {
-//         res.set('Content-Type', client.register.contentType);
-//         res.end(await client.register.metrics());
-//     } catch (err) {
-//         res.status(500).end(err);
-//     }
-// });
-
 app.use(cors());
+
+
+// Создание метрик
+const collectDefaultMetrics = promClient.collectDefaultMetrics;
+collectDefaultMetrics(); // Автоматически собирает стандартные метрики, такие как загрузка CPU, память и т.д.
+
+const requestCounter = new promClient.Counter({
+    name: 'currency_converter_requests_total',
+    help: 'Total number of requests to the currency converter endpoint'
+});
+
+const requestDurationHistogram = new promClient.Histogram({
+    name: 'currency_converter_request_duration_seconds',
+    help: 'Histogram of request durations for currency conversion',
+    buckets: [0.1, 0.2, 0.5, 1, 2, 5]  // Значения для группировки
+});
+
 
 app.get('/convert', async (req, res) => {
     const { from, to, amount } = req.query;
@@ -63,6 +52,15 @@ app.get('/currencies', async (req, res) => {
     }
 });
 
+// Экспозитор метрик для Prometheus
+app.get('/metrics', async (req, res) => {
+    try {
+        res.set('Content-Type', promClient.register.contentType); // Устанавливаем заголовок для Prometheus
+        res.end(await promClient.register.metrics()); // Отправляем метрики
+    } catch (error) {
+        res.status(500).send('Error generating metrics');
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
